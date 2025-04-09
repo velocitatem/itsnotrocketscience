@@ -205,3 +205,132 @@ learning_rate = 3e-4
 
 2. **Memory Efficiency**
    - Uses `torch.no_grad()`
+
+## Hindsight Experience Replay (HER) Implementation
+
+### Overview
+The Hindsight Experience Replay (HER) implementation provides an alternative approach to the Actor-Critic method, specifically designed to improve sample efficiency in goal-oriented tasks. HER allows the agent to learn from failed attempts by treating achieved states as goals, effectively creating additional training data from each episode.
+
+### Core Components
+
+1. **HER Buffer**
+   - Stores transitions with their original goals
+   - Implements virtual transition creation with HER
+   - Supports multiple goal selection strategies:
+     - `future`: Selects future states as goals
+     - `episode`: Selects random states from the episode
+     - `final`: Uses the final state as the goal
+
+2. **DQN Network**
+   - Deep Q-Network for action-value estimation
+   - Takes concatenated state and goal as input
+   - Outputs Q-values for each possible action
+   - Uses a three-layer architecture with ReLU activation
+
+3. **HER Agent**
+   - Implements epsilon-greedy action selection
+   - Manages experience replay and HER sampling
+   - Handles network updates and target network synchronization
+   - Supports model saving and loading
+
+### Implementation Details
+
+#### HER Buffer
+```python
+class HERBuffer:
+    def __init__(self, max_size=100000, n_sampled_goal=4, goal_selection_strategy='future'):
+        self.buffer = deque(maxlen=max_size)
+        self.n_sampled_goal = n_sampled_goal
+        self.goal_selection_strategy = goal_selection_strategy
+```
+
+#### Goal Selection Strategies
+```python
+# Future goal selection
+future_idx = np.random.randint(i, len(batch))
+new_goal = next_obs[future_idx]
+
+# Episode goal selection
+episode_idx = np.random.randint(0, len(batch))
+new_goal = next_obs[episode_idx]
+
+# Final goal selection
+new_goal = next_obs[-1]
+```
+
+#### Reward Computation
+```python
+def compute_reward(self, achieved_goal, desired_goal):
+    # Negative distance as reward
+    return -np.linalg.norm(achieved_goal - desired_goal)
+```
+
+### Training Process
+
+1. **Experience Collection**
+   - Store transitions (state, action, reward, next_state, done, goal)
+   - Create virtual transitions using HER
+   - Sample batches for training
+
+2. **Network Updates**
+   - Compute Q-values for current state-goal pairs
+   - Compute target Q-values using next state-goal pairs
+   - Update network using MSE loss
+   - Periodically update target network
+
+3. **Action Selection**
+   - Use epsilon-greedy policy for exploration
+   - Concatenate state and goal for Q-value computation
+   - Select action with highest Q-value
+
+### Key Features
+
+1. **Sample Efficiency**
+   - Creates additional training data from each episode
+   - Reduces the number of episodes needed for learning
+   - Particularly effective for sparse reward tasks
+
+2. **Goal Selection Flexibility**
+   - Multiple strategies for goal selection
+   - Configurable number of virtual transitions per real transition
+   - Adaptable to different task requirements
+
+3. **Stable Learning**
+   - Target network for stable Q-value estimation
+   - Epsilon decay for controlled exploration
+   - Batch normalization for stable training
+
+### Usage
+
+The HER implementation can be configured through several parameters:
+
+```python
+# Default configuration
+buffer_size = 100000
+n_sampled_goal = 4
+goal_selection_strategy = 'future'
+learning_rate = 1e-4
+gamma = 0.99
+epsilon = 1.0
+epsilon_min = 0.01
+epsilon_decay = 0.995
+batch_size = 64
+target_update = 1000
+```
+
+### Technical Considerations
+
+1. **Memory Management**
+   - Fixed-size replay buffer with deque
+   - Efficient sampling of transitions
+   - Proper tensor conversion and device placement
+
+2. **Numerical Stability**
+   - Proper handling of tensor dimensions
+   - Consistent goal shape management
+   - Appropriate reward scaling
+
+3. **Performance Optimization**
+   - Batch processing for network updates
+   - Efficient goal selection strategies
+   - Optimized tensor operations
